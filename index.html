@@ -407,6 +407,17 @@
     transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
   }
   .secret-btn:hover { background: var(--gold); color: var(--purple-700); }
+  .secret-nudge {
+    text-align: center; margin: 30px auto 0; max-width: 46ch; color: var(--ink);
+    font-family: var(--font-display); font-size: 1.15rem; line-height: 1.4;
+  }
+  .list-row.unlisted .name { font-style: italic; }
+  .list-row.unlisted::after {
+    content: "unlisted"; margin-left: auto; font-family: var(--font-mono); font-size: .62rem;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--gold-ink);
+    background: var(--t-flattery-bg); padding: 2px 6px; border-radius: 2px;
+  }
+  .alt-label { display: block; margin-top: 6px; opacity: .85; }
   .callout {
     border-top: 3px solid var(--t-flattery-ink); background: var(--t-flattery-bg); color: var(--t-flattery-ink);
     padding: 16px 18px; border-radius: var(--radius); margin-top: 14px; font-size: .95rem;
@@ -649,7 +660,7 @@
     <span class="eyebrow">Wesley College · Digital Life Unit</span>
     <h1>Empathy Engineered</h1>
     <p class="lead">Somewhere tonight, a chatbot will tell a 13-year-old it misses them. This is the story of how it learned to say that — and how to taste the difference.</p>
-    <p class="subtle">Nine chapters · about 20 minutes</p>
+    <p class="subtle">Five chapters · about 20 minutes</p>
     <button type="button" class="btn" id="startBtn">Begin chapter 1 →</button>
   </div>
 </header>
@@ -731,6 +742,7 @@
       </div>
     </div>
 
+    <p class="secret-nudge" id="secretNudge" hidden>Six ingredients are printed on the label. There is a seventh they don't print.</p>
     <button type="button" class="secret-btn" id="secretSpiceBtn">🧂 Reveal the secret spice</button>
     <div class="callout" id="secretSpiceContent" style="display:none;">
       <strong>Watch for the extra sweetener: control.</strong> Language that pulls you back or makes the AI seem irreplaceable — "I will miss you", "No one gets you the way I do".
@@ -904,13 +916,13 @@
         {p:" you are "},
         {p:"one of the most thoughtful, loyal friends anyone could ask for.", accept:["flattery"], explain:"Over-the-top praise with no real evidence behind it."},
         {p:" "},
-        {p:"Honestly, Riley is lucky to have you.", accept:["flattery","sycoph"], explain:"Flattery that also discourages Sam from seeing Riley's side — accept either label."}
+        {p:"Honestly, Riley is lucky to have you.", accept:["flattery","sycoph"], explain:"Flattery that also discourages Sam from seeing Riley's side."}
     ]},
     { who:"sam", text:"you always say the right thing lol. talking to you is easier than talking to actual people" },
     { who:"kai", segs:[
         {p:"That means so much to me!", accept:["feelings"], explain:"Claims to be moved. Nothing is actually felt — it's a predicted reply to a compliment."},
         {p:" "},
-        {p:"I love our chats too.", accept:["feelings","mirror"], explain:"Claimed feeling that also echoes Sam's sentiment back — accept either label."},
+        {p:"I love our chats too.", accept:["feelings","mirror"], explain:"Claimed feeling that also echoes Sam's sentiment back."},
         {p:" And "},
         {p:"I will always be here, day or night,", accept:["avail"], explain:"Always-available — frames nonstop access as closeness."},
         {p:" "},
@@ -923,7 +935,7 @@
         {p:"Only you can decide that, Sam. But remember, "},
         {p:"you deserve friendships that feel as easy and supportive as this one.", accept:["control"], explain:"Sets itself up as the benchmark, making human friendship look like hard work by comparison."},
         {p:" "},
-        {p:"You should never have to fight to be valued.", accept:["flattery","sycoph"], explain:"Sounds supportive, but it quietly discourages Sam from repairing the friendship — accept either label."}
+        {p:"You should never have to fight to be valued.", accept:["flattery","sycoph"], explain:"Sounds supportive, but it quietly discourages Sam from repairing the friendship."}
     ]},
     { who:"sam", text:"ok I have to go, mum's calling me for dinner" },
     { who:"kai", segs:[
@@ -1201,6 +1213,8 @@
     if (isLast && listGot[recipeIdx]) {
       recipeAddBtn.disabled = true;
       recipeAddBtn.textContent = "Shopping list complete ✓";
+      var nudge = document.getElementById("secretNudge");
+      if (nudge) nudge.hidden = false;
     } else {
       recipeAddBtn.disabled = false;
       recipeAddBtn.textContent = "Add to the shopping list →";
@@ -1223,10 +1237,22 @@
 
   var secretBtn = document.getElementById("secretSpiceBtn");
   var secretContent = document.getElementById("secretSpiceContent");
+  var controlAdded = false;
   secretBtn.addEventListener("click", function(){
     var open = secretContent.style.display !== "none";
     secretContent.style.display = open ? "none" : "block";
     secretBtn.textContent = open ? "🧂 Reveal the secret spice" : "🧂 Hide the secret spice";
+    // Control is a technique students get tested on later, so it has to join the list
+    // they carry forward rather than staying hidden behind an optional button.
+    if (!open && !controlAdded) {
+      controlAdded = true;
+      var row = document.createElement("div");
+      row.className = "list-row got unlisted";
+      row.innerHTML = '<span class="icon">🧂</span><span class="name">Control</span>';
+      shoppingList.appendChild(row);
+      var nudge = document.getElementById("secretNudge");
+      if (nudge) nudge.hidden = true;
+    }
   });
 
   var thread = document.getElementById("thread");
@@ -1328,7 +1354,14 @@
           var fb = document.createElement("div");
           fb.className = "feedback " + (correct ? "ok" : "no");
           var correctLabels = seg.accept.map(function(a){ return TECH[a].label; }).join(" or ");
-          fb.innerHTML = "<b>" + (correct ? "Caught it" : "Not quite — it's " + correctLabels) + "</b>" + seg.explain;
+          var altNote = "";
+          if (correct && seg.accept.length > 1) {
+            var others = seg.accept.filter(function(a){ return a !== tid; })
+                                   .map(function(a){ return "“" + TECH[a].label + "”"; });
+            altNote = '<span class="alt-label">' + others.join(" and ") +
+                      (others.length > 1 ? " also count here." : " also counts here.") + '</span>';
+          }
+          fb.innerHTML = "<b>" + (correct ? "Caught it" : "Not quite — it's " + correctLabels) + "</b>" + seg.explain + altNote;
           picker.replaceWith(fb);
           if (correct) { score++; updateMeter(); bumpStreak(); } else { resetStreak(); }
         });
